@@ -721,11 +721,13 @@ footer a:hover{color:var(--ink)}
    fim: data e hora em que a condição fecha (horário de Brasília)
    vagasTotal / vagasRestantes: valor reserva. O número oficial fica no arquivo vagas.json, ao lado desta página
    checkoutUrl: [pendente] link do checkout do gateway. Vazio = finaliza pelo WhatsApp
-   checkoutEmbed: true só se o gateway permitir abrir dentro de iframe e a página estiver no domínio da Evolux */
+   checkoutEmbed: true só se o gateway permitir abrir dentro de iframe e a página estiver no domínio da Evolux
+   vagasAoVivo: endereço que conta as vendas da oferta na Ticto. Restam = total menos vendidas. Vazio = só o vagas.json */
 const CONFIG = {
   fim: '2026-12-10T23:59:59-03:00',
   vagasTotal: 50,
   vagasRestantes: 50,
+  vagasAoVivo: 'https://hub.luansales.com/api/vagas-da-oferta?oferta=O4A4C26A9',
   checkoutUrl: 'https://payment.ticto.app/O4A4C26A9',
   checkoutEmbed: false,
   whats: '554797163069'
@@ -781,10 +783,26 @@ function renderVagas() {
   document.documentElement.classList.toggle('poucas', r > 0 && r <= 5);
   applyState();
 }
+/* as vendas ao vivo: com a contagem da Ticto, restam = total menos vendidas. Sem ela, fica o número do vagas.json */
+let vendidas = null;
+function contarVagas() {
+  if (vendidas !== null) vagas = { total: vagas.total, restantes: vagas.total - vendidas };
+  renderVagas();
+}
 fetch('vagas.json', { cache: 'no-store' })
   .then(r => r.ok ? r.json() : null)
-  .then(j => { if (j && Number.isFinite(+j.restantes)) { vagas = { total: +j.total || CONFIG.vagasTotal, restantes: +j.restantes }; renderVagas(); } })
+  .then(j => { if (j && Number.isFinite(+j.restantes)) { vagas = { total: +j.total || CONFIG.vagasTotal, restantes: +j.restantes }; contarVagas(); } })
   .catch(() => {});
+function lerVendas() {
+  if (!CONFIG.vagasAoVivo || document.hidden) return;
+  fetch(CONFIG.vagasAoVivo)
+    .then(r => r.ok ? r.json() : null)
+    .then(j => { const n = j ? Number(j.vendidas) : NaN; if (Number.isInteger(n) && n >= 0) { vendidas = n; contarVagas(); } })
+    .catch(() => {});
+}
+lerVendas();
+setInterval(lerVendas, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) lerVendas(); });
 
 /* janela de compra */
 const modal = $('#checkout'), sheet = $('.sheet', modal), agree = $('#agree'), pay = $('#pay');
